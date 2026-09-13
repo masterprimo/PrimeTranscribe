@@ -5,11 +5,9 @@ import Link from "next/link";
 export default function Home() {
   return (
     <main className="min-h-screen bg-white text-gray-900">
-
       {/* NAVIGATION */}
       <header className="border-b bg-white">
         <div className="max-w-7xl mx-auto px-6 py-5 flex items-center justify-between">
-
           <Link
             href="/"
             className="text-2xl font-bold text-blue-700"
@@ -26,33 +24,26 @@ export default function Home() {
             </Link>
 
             <Link
-              href="/signup"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold"
+              href="/register"
+              className="bg-blue-700 text-white px-5 py-2.5 rounded-lg font-semibold hover:bg-blue-800"
             >
               Sign Up
             </Link>
           </div>
-
         </div>
       </header>
 
-
       {/* HERO */}
       <section className="bg-blue-700 text-white">
-
         <div className="max-w-7xl mx-auto px-6 py-24 grid lg:grid-cols-2 gap-12 items-center">
-
           <div>
-
             <p className="text-blue-200 font-bold mb-4">
               PRIME TRANSCRIBE
             </p>
 
             <h1 className="text-5xl md:text-6xl font-bold leading-tight">
               Turn Audio Into
-              <span className="text-blue-200">
-                {" "}Income
-              </span>
+              <span className="text-blue-200"> Income</span>
             </h1>
 
             <p className="text-xl text-blue-100 mt-6 leading-8 max-w-xl">
@@ -61,9 +52,8 @@ export default function Home() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 mt-8">
-
               <Link
-                href="/signup"
+                href="/register"
                 className="bg-white text-blue-700 hover:bg-blue-50 px-7 py-4 rounded-xl font-bold text-lg text-center"
               >
                 Become a Worker
@@ -75,17 +65,12 @@ export default function Home() {
               >
                 Login
               </Link>
-
             </div>
-
           </div>
-
 
           {/* JOB PREVIEW */}
           <div className="bg-white rounded-3xl p-7 text-gray-900 shadow-2xl">
-
             <div className="flex justify-between items-start">
-
               <div>
                 <p className="text-sm text-gray-500">
                   Available Job
@@ -99,11 +84,9 @@ export default function Home() {
               <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
                 Open
               </span>
-
             </div>
 
             <div className="mt-7 space-y-4">
-
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-gray-500 text-sm">
                   Audio
@@ -127,21 +110,14 @@ export default function Home() {
               <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold">
                 Accept Job
               </button>
-
             </div>
-
           </div>
-
         </div>
-
       </section>
-
 
       {/* STATISTICS */}
       <section className="border-b">
-
         <div className="max-w-7xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-
           <div>
             <p className="text-3xl font-bold text-blue-600">
               15,000+
@@ -177,19 +153,13 @@ export default function Home() {
               Satisfaction
             </p>
           </div>
-
         </div>
-
       </section>
-
 
       {/* FEATURES */}
       <section className="py-20 bg-gray-50">
-
         <div className="max-w-7xl mx-auto px-6">
-
           <div className="text-center mb-12">
-
             <p className="text-blue-600 font-bold">
               WHY PRIME TRANSCRIBE
             </p>
@@ -197,12 +167,9 @@ export default function Home() {
             <h2 className="text-4xl font-bold mt-3">
               Everything You Need To Work
             </h2>
-
           </div>
 
-
           <div className="grid md:grid-cols-3 gap-8">
-
             <div className="bg-white rounded-2xl shadow p-8">
               <div className="text-4xl mb-5">
                 🎧
@@ -217,7 +184,6 @@ export default function Home() {
                 choose the work you want.
               </p>
             </div>
-
 
             <div className="bg-white rounded-2xl shadow p-8">
               <div className="text-4xl mb-5">
@@ -234,7 +200,6 @@ export default function Home() {
               </p>
             </div>
 
-
             <div className="bg-white rounded-2xl shadow p-8">
               <div className="text-4xl mb-5">
                 💰
@@ -249,21 +214,14 @@ export default function Home() {
                 become available for withdrawal.
               </p>
             </div>
-
           </div>
-
         </div>
-
       </section>
-
 
       {/* HOW IT WORKS */}
       <section className="py-20">
-
         <div className="max-w-7xl mx-auto px-6">
-
           <div className="text-center mb-14">
-
             <p className="text-blue-600 font-bold">
               HOW IT WORKS
             </p>
@@ -271,12 +229,9 @@ export default function Home() {
             <h2 className="text-4xl font-bold mt-3">
               Start Earning In Four Steps
             </h2>
-
           </div>
 
-
           <div className="grid md:grid-cols-4 gap-8">
-
             <div className="text-center">
               <div className="w-14 h-14 mx-auto rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
                 1
@@ -290,7 +245,6 @@ export default function Home() {
                 Create your worker account.
               </p>
             </div>
-
 
             <div className="text-center">
               <div className="w-14 h-14 mx-auto rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
@@ -306,7 +260,6 @@ export default function Home() {
               </p>
             </div>
 
-
             <div className="text-center">
               <div className="w-14 h-14 mx-auto rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
                 3
@@ -321,7 +274,6 @@ export default function Home() {
               </p>
             </div>
 
-
             <div className="text-center">
               <div className="w-14 h-14 mx-auto rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
                 4
@@ -335,19 +287,13 @@ export default function Home() {
                 Approved work adds to your balance.
               </p>
             </div>
-
           </div>
-
         </div>
-
       </section>
-
 
       {/* CALL TO ACTION */}
       <section className="bg-blue-700 text-white">
-
         <div className="max-w-5xl mx-auto px-6 py-20 text-center">
-
           <h2 className="text-4xl md:text-5xl font-bold">
             Ready To Start Earning?
           </h2>
@@ -357,26 +303,19 @@ export default function Home() {
           </p>
 
           <Link
-            href="/signup"
+            href="/register"
             className="inline-block mt-8 bg-white text-blue-700 hover:bg-blue-50 px-8 py-4 rounded-xl font-bold text-lg"
           >
             Create Worker Account
           </Link>
-
         </div>
-
       </section>
-
 
       {/* FOOTER */}
       <footer className="bg-gray-950 text-gray-400">
-
         <div className="max-w-7xl mx-auto px-6 py-10">
-
           <div className="flex flex-col md:flex-row justify-between gap-6">
-
             <div>
-
               <h3 className="text-xl font-bold text-white">
                 Prime Transcribe
               </h3>
@@ -384,11 +323,9 @@ export default function Home() {
               <p className="mt-2">
                 Professional online transcription platform.
               </p>
-
             </div>
 
             <div className="flex gap-6">
-
               <Link
                 href="/login"
                 className="hover:text-white"
@@ -397,7 +334,7 @@ export default function Home() {
               </Link>
 
               <Link
-                href="/signup"
+                href="/register"
                 className="hover:text-white"
               >
                 Sign Up
@@ -409,19 +346,14 @@ export default function Home() {
               >
                 Admin
               </Link>
-
             </div>
-
           </div>
 
           <div className="border-t border-gray-800 mt-8 pt-6 text-sm">
-            © {new Date().getFullYear()} Prime Transcribe. All rights reserved.
+            © 2024 Prime Transcribe. All rights reserved.
           </div>
-
         </div>
-
       </footer>
-
     </main>
   );
 }
