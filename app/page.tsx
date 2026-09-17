@@ -325,7 +325,7 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="flex gap-6">
+            <div className="flex flex-wrap gap-6">
               <Link
                 href="/login"
                 className="hover:text-white"
@@ -346,11 +346,32 @@ export default function Home() {
               >
                 Admin
               </Link>
+
+              <Link
+                href="/terms"
+                className="hover:text-white"
+              >
+                Terms & Conditions
+              </Link>
+
+              <Link
+                href="/privacy"
+                className="hover:text-white"
+              >
+                Privacy Policy
+              </Link>
+
+              <Link
+                href="/contact"
+                className="hover:text-white"
+              >
+                Contact & Support
+              </Link>
             </div>
           </div>
 
           <div className="border-t border-gray-800 mt-8 pt-6 text-sm">
-            © 2024 Prime Transcribe. All rights reserved.
+            © 2026 Prime Transcribe. All rights reserved.
           </div>
         </div>
       </footer>
