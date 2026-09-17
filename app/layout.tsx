@@ -15,8 +15,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Prime Transcribe",
   description: "Turn Audio Into Income",
+  icons: {
+    icon: "/prime-logo.png",
+  },
 };
-
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
