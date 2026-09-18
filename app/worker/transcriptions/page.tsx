@@ -1,4 +1,3 @@
-
 "use client";
 
 import {
@@ -21,6 +20,7 @@ type Job = {
   payment: number | null;
   status: string;
   worker_id: string | null;
+  job_type: string;
   created_at?: string;
 };
 
@@ -63,17 +63,19 @@ function TranscriptionContent() {
     const { data, error } = await supabase
       .from("jobs")
       .select(
-        "id, title, description, audio_url, duration, payment, status, worker_id, created_at"
+        "id, title, description, audio_url, duration, payment, status, worker_id, job_type, created_at"
       )
       .eq("id", jobId)
       .maybeSingle();
 
     if (error) {
       console.error("LOAD JOB ERROR:", error);
+
       alert(
         error.message ||
           "Unable to load transcription job."
       );
+
       router.replace("/worker");
       return;
     }
@@ -84,10 +86,71 @@ function TranscriptionContent() {
       return;
     }
 
+    const isInterview = data.job_type === "interview";
+
+    /*
+     * INTERVIEW TEST
+     *
+     * Interview jobs are shared.
+     * They do not belong to one worker.
+     */
+    if (isInterview) {
+      if (data.status !== "open") {
+        alert(
+          "This interview test is not currently available."
+        );
+
+        router.replace("/worker");
+        return;
+      }
+
+      const { data: existingSubmission, error: submissionCheckError } =
+        await supabase
+          .from("submissions")
+          .select("id, status")
+          .eq("job_id", jobId)
+          .eq("worker_id", user.id)
+          .maybeSingle();
+
+      if (submissionCheckError) {
+        console.error(
+          "INTERVIEW SUBMISSION CHECK ERROR:",
+          submissionCheckError
+        );
+
+        alert(
+          submissionCheckError.message ||
+            "Unable to check your interview submission."
+        );
+
+        router.replace("/worker");
+        return;
+      }
+
+      if (existingSubmission) {
+        alert(
+          "You have already submitted this interview test."
+        );
+
+        router.replace("/worker");
+        return;
+      }
+
+      setJob(data as Job);
+      setLoading(false);
+      return;
+    }
+
+    /*
+     * REGULAR JOB
+     *
+     * Regular jobs belong to one worker.
+     */
     if (data.worker_id !== user.id) {
       alert(
         "You are not authorized to transcribe this job."
       );
+
       router.replace("/worker");
       return;
     }
@@ -99,6 +162,7 @@ function TranscriptionContent() {
       alert(
         "This job is not currently available for transcription."
       );
+
       router.replace("/worker");
       return;
     }
@@ -134,6 +198,13 @@ function TranscriptionContent() {
     setSubmitting(true);
 
     try {
+      const isInterview =
+        job.job_type === "interview";
+
+      /*
+       * Check whether this worker already submitted
+       * this particular job.
+       */
       const {
         data: existingSubmissions,
         error: checkError,
@@ -163,13 +234,18 @@ function TranscriptionContent() {
         existingSubmissions.length > 0
       ) {
         alert(
-          "You have already submitted this job."
+          isInterview
+            ? "You have already submitted this interview test."
+            : "You have already submitted this job."
         );
 
         setSubmitting(false);
         return;
       }
 
+      /*
+       * Create the submission.
+       */
       const {
         data: newSubmission,
         error: submissionError,
@@ -210,6 +286,28 @@ function TranscriptionContent() {
         return;
       }
 
+      /*
+       * INTERVIEW TEST:
+       *
+       * Do NOT update the job.
+       *
+       * The same interview job must remain open so
+       * other workers can also take the test.
+       */
+      if (isInterview) {
+        alert(
+          "Interview test submitted successfully! It is now waiting for admin review."
+        );
+
+        router.replace("/worker");
+        return;
+      }
+
+      /*
+       * REGULAR JOB:
+       *
+       * Mark the job completed after submission.
+       */
       const {
         error: jobUpdateError,
       } = await supabase
@@ -299,6 +397,8 @@ function TranscriptionContent() {
     );
   }
 
+  const isInterview = job.job_type === "interview";
+
   return (
     <main className="min-h-screen bg-gray-100">
       <header className="bg-blue-700 text-white shadow-lg">
@@ -339,13 +439,27 @@ function TranscriptionContent() {
         <div className="bg-white rounded-xl shadow p-6 mb-6">
           <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-5">
             <div>
-              <p className="text-blue-600 font-semibold text-sm">
-                Transcription Job
+              <p
+                className={`font-semibold text-sm ${
+                  isInterview
+                    ? "text-purple-600"
+                    : "text-blue-600"
+                }`}
+              >
+                {isInterview
+                  ? "INTERVIEW TEST"
+                  : "TRANSCRIPTION JOB"}
               </p>
 
               <h2 className="text-3xl font-bold text-gray-800 mt-2">
                 {job.title}
               </h2>
+
+              {isInterview && (
+                <div className="mt-3 inline-block bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm font-bold">
+                  Paid Interview Test — $10
+                </div>
+              )}
 
               {job.description && (
                 <p className="text-gray-600 mt-4">
@@ -385,7 +499,7 @@ function TranscriptionContent() {
               </p>
 
               <p className="font-semibold text-blue-600 mt-1 capitalize">
-                {job.status}
+                {isInterview ? "Open" : job.status}
               </p>
             </div>
           </div>
@@ -440,10 +554,16 @@ function TranscriptionContent() {
                 submitting ||
                 !transcript.trim()
               }
-              className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-8 py-3 rounded-lg font-bold"
+              className={`text-white px-8 py-3 rounded-lg font-bold ${
+                isInterview
+                  ? "bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400"
+                  : "bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400"
+              }`}
             >
               {submitting
                 ? "Submitting..."
+                : isInterview
+                ? "Submit Interview Test"
                 : "Submit Transcription"}
             </button>
           </div>
@@ -474,4 +594,3 @@ export default function TranscriptionPage() {
     </Suspense>
   );
 }
-
