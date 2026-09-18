@@ -13,6 +13,7 @@ type Job = {
   payment: number | null;
   status: string;
   worker_id: string | null;
+  job_type: string;
   created_at: string;
 };
 
@@ -23,7 +24,10 @@ export default function AdminJobsPage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [payment, setPayment] = useState("");
+  const [payment, setPayment] = useState("10");
+  const [jobType, setJobType] = useState<"regular" | "interview">(
+    "regular"
+  );
   const [audioFile, setAudioFile] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -288,6 +292,7 @@ export default function AdminJobsPage() {
           payment: paymentAmount,
           status: "open",
           worker_id: null,
+          job_type: jobType,
         })
         .select()
         .single();
@@ -313,11 +318,16 @@ export default function AdminJobsPage() {
         createdJob
       );
 
-      alert("Job created successfully!");
+      alert(
+        jobType === "interview"
+          ? "Interview test created successfully! It will be available to all workers and pays $10."
+          : "Job created successfully!"
+      );
 
       setTitle("");
       setDescription("");
-      setPayment("");
+      setPayment(jobType === "interview" ? "10" : "");
+      setJobType("regular");
       setAudioFile(null);
 
       const fileInput =
@@ -518,7 +528,7 @@ export default function AdminJobsPage() {
             </h2>
 
             <p className="text-gray-500 mt-2">
-              Upload an audio file and create a job for workers.
+              Create regular paid jobs or interview tests for workers.
             </p>
           </div>
 
@@ -556,6 +566,36 @@ export default function AdminJobsPage() {
                 rows={4}
                 className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            <div>
+              <label className="block font-semibold text-gray-700 mb-2">
+                Job Type
+              </label>
+
+              <select
+                value={jobType}
+                onChange={(e) =>
+                  setJobType(
+                    e.target.value as
+                      | "regular"
+                      | "interview"
+                  )
+                }
+                className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="regular">
+                  Regular Paid Job
+                </option>
+
+                <option value="interview">
+                  Interview Test - $10
+                </option>
+              </select>
+
+              <p className="text-sm text-gray-500 mt-2">
+                Interview tests remain available to all workers. Each worker can submit independently.
+              </p>
             </div>
 
             <div>
@@ -616,9 +656,15 @@ export default function AdminJobsPage() {
                 onChange={(e) =>
                   setPayment(e.target.value)
                 }
-                placeholder="e.g. 5"
+                placeholder="e.g. 10"
                 className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+
+              {jobType === "interview" && (
+                <p className="text-sm text-green-600 mt-2 font-semibold">
+                  Interview test payment: $10
+                </p>
+              )}
             </div>
 
             <button
@@ -684,6 +730,19 @@ export default function AdminJobsPage() {
                         <span
                           className={
                             "px-3 py-1 rounded-full text-sm font-semibold " +
+                            (job.job_type === "interview"
+                              ? "bg-purple-100 text-purple-700"
+                              : "bg-gray-100 text-gray-700")
+                          }
+                        >
+                          {job.job_type === "interview"
+                            ? "Interview Test"
+                            : "Regular Job"}
+                        </span>
+
+                        <span
+                          className={
+                            "px-3 py-1 rounded-full text-sm font-semibold " +
                             statusClass(
                               job.status
                             )
@@ -732,7 +791,7 @@ export default function AdminJobsPage() {
 
                           <p className="font-semibold text-gray-700 break-all">
                             {job.worker_id ||
-                              "Unassigned"}
+                              "Unassigned / Available to all"}
                           </p>
                         </div>
                       </div>
