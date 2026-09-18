@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -17,7 +18,7 @@ export default function SignupPage() {
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -28,12 +29,34 @@ export default function SignupPage() {
       return;
     }
 
-    setMessage("Account created successfully. You can now log in.");
+    if (!data.user) {
+      setMessage("Account creation failed. Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    // Every public signup is automatically a worker.
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .insert({
+        id: data.user.id,
+        role: "worker",
+      });
+
+    if (profileError) {
+      console.error("PROFILE ERROR:", profileError);
+      setMessage("Account created, but profile setup failed. Please contact support.");
+      setLoading(false);
+      return;
+    }
+
+    setMessage("Account created successfully. Redirecting...");
+
     setLoading(false);
 
     setTimeout(() => {
       router.push("/login");
-    }, 1500);
+    }, 1000);
   }
 
   return (

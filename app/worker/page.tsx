@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -105,18 +106,18 @@ export default function WorkerPage() {
       .eq("status", "open")
       .order("created_at", { ascending: false });
 
-   if (openError) {
-  console.error(
-    "AVAILABLE JOBS ERROR:",
-    JSON.stringify(openError, null, 2)
-  );
+    if (openError) {
+      console.error(
+        "AVAILABLE JOBS ERROR:",
+        JSON.stringify(openError, null, 2)
+      );
 
-  alert(
-    `Unable to load available jobs: ${
-      openError.message || "Unknown database error"
-    }`
-  );
-}
+      alert(
+        `Unable to load available jobs: ${
+          openError.message || "Unknown database error"
+        }`
+      );
+    }
 
     setAvailableJobs((openJobs || []) as Job[]);
 
@@ -139,20 +140,6 @@ export default function WorkerPage() {
   }
 
   async function loadEarnings(currentUserId: string) {
-    /*
-      IMPORTANT:
-      submissions table has:
-      id
-      job_id
-      worker_id
-      transcript
-      submitted_at
-
-      There is NO status column in submissions.
-
-      Therefore we determine completed work from jobs.status.
-    */
-
     const {
       data: submissions,
       error: submissionError,
@@ -192,9 +179,7 @@ export default function WorkerPage() {
       error: jobsError,
     } = await supabase
       .from("jobs")
-      .select(
-        "id, payment, status"
-      )
+      .select("id, payment, status")
       .in("id", jobIds);
 
     if (jobsError) {
@@ -209,21 +194,15 @@ export default function WorkerPage() {
     }
 
     const completedJobsList = (jobs || []).filter(
-      (job) =>
-        job.status === "completed"
+      (job) => job.status === "completed"
     );
 
-    setCompletedJobs(
-      completedJobsList.length
-    );
+    setCompletedJobs(completedJobsList.length);
 
     const totalApproved =
       completedJobsList.reduce(
         (total, job) =>
-          total +
-          Number(
-            job.payment ?? 0
-          ),
+          total + Number(job.payment ?? 0),
         0
       );
 
@@ -249,25 +228,16 @@ export default function WorkerPage() {
     const totalWithdrawn =
       (approvedWithdrawals || []).reduce(
         (total, withdrawal) =>
-          total +
-          Number(
-            withdrawal.amount || 0
-          ),
+          total + Number(withdrawal.amount || 0),
         0
       );
 
     setEarnings(
-      Math.max(
-        totalApproved -
-          totalWithdrawn,
-        0
-      )
+      Math.max(totalApproved - totalWithdrawn, 0)
     );
   }
 
-  async function loadWithdrawals(
-    currentUserId: string
-  ) {
+  async function loadWithdrawals(currentUserId: string) {
     const {
       data,
       error,
@@ -276,34 +246,22 @@ export default function WorkerPage() {
       .select(
         "id, worker_id, amount, paypal_email, status"
       )
-      .eq(
-        "worker_id",
-        currentUserId
-      )
+      .eq("worker_id", currentUserId)
       .order("id", {
         ascending: false,
       });
 
     if (error) {
-      console.error(
-        "WITHDRAWALS ERROR:",
-        error
-      );
+      console.error("WITHDRAWALS ERROR:", error);
       return;
     }
 
-    setWithdrawals(
-      (data || []) as Withdrawal[]
-    );
+    setWithdrawals((data || []) as Withdrawal[]);
   }
 
-  async function acceptJob(
-    jobId: number
-  ) {
+  async function acceptJob(jobId: number) {
     if (!userId) {
-      alert(
-        "Please log in again."
-      );
+      alert("Please log in again.");
       return;
     }
 
@@ -326,14 +284,10 @@ export default function WorkerPage() {
       .maybeSingle();
 
     if (error) {
-      console.error(
-        "ACCEPT JOB ERROR:",
-        error
-      );
+      console.error("ACCEPT JOB ERROR:", error);
 
       alert(
-        error.message ||
-          "Unable to accept job."
+        error.message || "Unable to accept job."
       );
 
       setAcceptingJob(null);
@@ -350,9 +304,7 @@ export default function WorkerPage() {
       return;
     }
 
-    alert(
-      "Job accepted successfully!"
-    );
+    alert("Job accepted successfully!");
 
     await loadJobs(userId);
 
@@ -361,64 +313,47 @@ export default function WorkerPage() {
 
   async function requestWithdrawal() {
     if (!userId) {
-      alert(
-        "Please log in again."
-      );
+      alert("Please log in again.");
       return;
     }
 
-    const amount =
-      Number(withdrawAmount);
+    const amount = Number(withdrawAmount);
 
     if (!amount || amount <= 0) {
-      alert(
-        "Enter a valid withdrawal amount."
-      );
+      alert("Enter a valid withdrawal amount.");
       return;
     }
 
     if (amount > earnings) {
       alert(
-        `You only have $${earnings.toFixed(
-          2
-        )} available.`
+        `You only have $${earnings.toFixed(2)} available.`
       );
       return;
     }
 
     if (!paypalEmail.trim()) {
-      alert(
-        "Enter your PayPal email."
-      );
+      alert("Enter your PayPal email.");
       return;
     }
 
     if (!paypalEmail.includes("@")) {
-      alert(
-        "Enter a valid PayPal email."
-      );
+      alert("Enter a valid PayPal email.");
       return;
     }
 
     setWithdrawing(true);
 
-    const {
-      error,
-    } = await supabase
+    const { error } = await supabase
       .from("withdrawals")
       .insert({
         worker_id: userId,
         amount,
-        paypal_email:
-          paypalEmail.trim(),
+        paypal_email: paypalEmail.trim(),
         status: "pending",
       });
 
     if (error) {
-      console.error(
-        "WITHDRAWAL ERROR:",
-        error
-      );
+      console.error("WITHDRAWAL ERROR:", error);
 
       alert(
         error.message ||
@@ -436,13 +371,8 @@ export default function WorkerPage() {
     setWithdrawAmount("");
     setPaypalEmail("");
 
-    await loadWithdrawals(
-      userId
-    );
-
-    await loadEarnings(
-      userId
-    );
+    await loadWithdrawals(userId);
+    await loadEarnings(userId);
 
     setWithdrawing(false);
   }
@@ -452,9 +382,7 @@ export default function WorkerPage() {
     router.replace("/login");
   }
 
-  function openTranscription(
-    jobId: number
-  ) {
+  function openTranscription(jobId: number) {
     router.push(
       `/worker/transcriptions?jobId=${encodeURIComponent(
         String(jobId)
@@ -462,12 +390,8 @@ export default function WorkerPage() {
     );
   }
 
-  function getPayment(
-    job: Job
-  ) {
-    return Number(
-      job.payment ?? 0
-    );
+  function getPayment(job: Job) {
+    return Number(job.payment ?? 0);
   }
 
   if (loading) {
@@ -520,9 +444,7 @@ export default function WorkerPage() {
               <button
                 onClick={() =>
                   document
-                    .getElementById(
-                      "available-jobs"
-                    )
+                    .getElementById("available-jobs")
                     ?.scrollIntoView({
                       behavior: "smooth",
                     })
@@ -535,9 +457,7 @@ export default function WorkerPage() {
               <button
                 onClick={() =>
                   document
-                    .getElementById(
-                      "my-jobs"
-                    )
+                    .getElementById("my-jobs")
                     ?.scrollIntoView({
                       behavior: "smooth",
                     })
@@ -547,11 +467,20 @@ export default function WorkerPage() {
                 My Jobs
               </button>
 
+              {/* PROFILE */}
+
               <button
                 onClick={() =>
-                  router.push(
-                    "/worker/earnings"
-                  )
+                  router.push("/worker/profile")
+                }
+                className="hover:bg-blue-600 px-4 py-2 rounded-lg"
+              >
+                Profile
+              </button>
+
+              <button
+                onClick={() =>
+                  router.push("/worker/earnings")
                 }
                 className="hover:bg-blue-600 px-4 py-2 rounded-lg"
               >
@@ -560,9 +489,7 @@ export default function WorkerPage() {
 
               <button
                 onClick={() =>
-                  router.push(
-                    "/worker/withdrawals"
-                  )
+                  router.push("/worker/withdrawals")
                 }
                 className="hover:bg-blue-600 px-4 py-2 rounded-lg"
               >
@@ -592,8 +519,7 @@ export default function WorkerPage() {
           </h2>
 
           <p className="text-gray-500 mt-2">
-            Find transcription jobs,
-            complete them, and earn money.
+            Find transcription jobs, complete them, and earn money.
           </p>
         </div>
 
@@ -646,9 +572,7 @@ export default function WorkerPage() {
             <button
               onClick={() =>
                 document
-                  .getElementById(
-                    "available-jobs"
-                  )
+                  .getElementById("available-jobs")
                   ?.scrollIntoView({
                     behavior: "smooth",
                   })
@@ -660,9 +584,16 @@ export default function WorkerPage() {
 
             <button
               onClick={() =>
-                router.push(
-                  "/worker/earnings"
-                )
+                router.push("/worker/profile")
+              }
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-lg font-semibold"
+            >
+              My Profile
+            </button>
+
+            <button
+              onClick={() =>
+                router.push("/worker/earnings")
               }
               className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-lg font-semibold"
             >
@@ -671,9 +602,7 @@ export default function WorkerPage() {
 
             <button
               onClick={() =>
-                router.push(
-                  "/worker/withdrawals"
-                )
+                router.push("/worker/withdrawals")
               }
               className="bg-green-600 hover:bg-green-700 text-white px-5 py-3 rounded-lg font-semibold"
             >
@@ -681,9 +610,7 @@ export default function WorkerPage() {
             </button>
 
             <button
-              onClick={
-                refreshDashboard
-              }
+              onClick={refreshDashboard}
               disabled={refreshing}
               className="bg-gray-800 hover:bg-gray-900 disabled:bg-gray-400 text-white px-5 py-3 rounded-lg font-semibold"
             >
@@ -713,9 +640,7 @@ export default function WorkerPage() {
 
             <button
               onClick={() =>
-                router.push(
-                  "/worker/withdrawals"
-                )
+                router.push("/worker/withdrawals")
               }
               className="text-purple-600 font-semibold hover:underline"
             >
@@ -749,9 +674,7 @@ export default function WorkerPage() {
                 step="0.01"
                 value={withdrawAmount}
                 onChange={(e) =>
-                  setWithdrawAmount(
-                    e.target.value
-                  )
+                  setWithdrawAmount(e.target.value)
                 }
                 placeholder="Enter amount"
                 className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -767,9 +690,7 @@ export default function WorkerPage() {
                 type="email"
                 value={paypalEmail}
                 onChange={(e) =>
-                  setPaypalEmail(
-                    e.target.value
-                  )
+                  setPaypalEmail(e.target.value)
                 }
                 placeholder="example@email.com"
                 className="w-full border border-gray-300 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -779,12 +700,9 @@ export default function WorkerPage() {
           </div>
 
           <button
-            onClick={
-              requestWithdrawal
-            }
+            onClick={requestWithdrawal}
             disabled={
-              withdrawing ||
-              earnings <= 0
+              withdrawing || earnings <= 0
             }
             className="mt-5 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-bold"
           >
@@ -807,9 +725,7 @@ export default function WorkerPage() {
 
             <button
               onClick={() =>
-                router.push(
-                  "/worker/withdrawals"
-                )
+                router.push("/worker/withdrawals")
               }
               className="text-blue-600 font-semibold hover:underline"
             >
@@ -832,55 +748,51 @@ export default function WorkerPage() {
 
               {withdrawals
                 .slice(0, 3)
-                .map(
-                  (withdrawal) => (
-                    <div
-                      key={
-                        withdrawal.id
-                      }
-                      className="border rounded-xl p-5"
-                    >
+                .map((withdrawal) => (
 
-                      <div className="flex justify-between items-center gap-4">
+                  <div
+                    key={withdrawal.id}
+                    className="border rounded-xl p-5"
+                  >
 
-                        <div>
-                          <p className="text-2xl font-bold text-blue-600">
-                            $
-                            {Number(
-                              withdrawal.amount
-                            ).toFixed(2)}
-                          </p>
+                    <div className="flex justify-between items-center gap-4">
 
-                          <p className="text-gray-500 text-sm mt-1">
-                            PayPal:{" "}
-                            {withdrawal.paypal_email ||
-                              "Not provided"}
-                          </p>
-                        </div>
+                      <div>
+                        <p className="text-2xl font-bold text-blue-600">
+                          ${Number(
+                            withdrawal.amount
+                          ).toFixed(2)}
+                        </p>
 
-                        <span
-                          className={`px-4 py-2 rounded-full font-semibold ${
-                            withdrawal.status ===
-                            "approved"
-                              ? "bg-green-100 text-green-700"
-                              : withdrawal.status ===
-                                "rejected"
-                              ? "bg-red-100 text-red-700"
-                              : "bg-yellow-100 text-yellow-700"
-                          }`}
-                        >
-                          {
-                            withdrawal.status
-                          }
-                        </span>
-
+                        <p className="text-gray-500 text-sm mt-1">
+                          PayPal:{" "}
+                          {withdrawal.paypal_email ||
+                            "Not provided"}
+                        </p>
                       </div>
 
+                      <span
+                        className={`px-4 py-2 rounded-full font-semibold ${
+                          withdrawal.status ===
+                          "approved"
+                            ? "bg-green-100 text-green-700"
+                            : withdrawal.status ===
+                              "rejected"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-yellow-100 text-yellow-700"
+                        }`}
+                      >
+                        {withdrawal.status}
+                      </span>
+
                     </div>
-                  )
-                )}
+
+                  </div>
+
+                ))}
 
             </div>
+
           )}
 
         </div>
@@ -916,70 +828,63 @@ export default function WorkerPage() {
 
             <div className="space-y-4">
 
-              {availableJobs.map(
-                (job) => (
+              {availableJobs.map((job) => (
 
-                  <div
-                    key={job.id}
-                    className="border rounded-xl p-5"
-                  >
+                <div
+                  key={job.id}
+                  className="border rounded-xl p-5"
+                >
 
-                    <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-5">
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-5">
 
-                      <div>
+                    <div>
 
-                        <h3 className="text-xl font-bold">
-                          {job.title}
-                        </h3>
+                      <h3 className="text-xl font-bold">
+                        {job.title}
+                      </h3>
 
-                        {job.description && (
-                          <p className="text-gray-500 mt-2">
-                            {job.description}
-                          </p>
-                        )}
-
+                      {job.description && (
                         <p className="text-gray-500 mt-2">
-                          Duration:{" "}
-                          {job.duration ??
-                            "Not specified"}{" "}
-                          minutes
+                          {job.description}
                         </p>
+                      )}
 
-                        <p className="text-blue-600 font-bold mt-2">
-                          Payment: $
-                          {getPayment(
-                            job
-                          ).toFixed(2)}
-                        </p>
+                      <p className="text-gray-500 mt-2">
+                        Duration:{" "}
+                        {job.duration ??
+                          "Not specified"}{" "}
+                        minutes
+                      </p>
 
-                      </div>
-
-                      <button
-                        onClick={() =>
-                          acceptJob(
-                            job.id
-                          )
-                        }
-                        disabled={
-                          acceptingJob ===
-                          job.id
-                        }
-                        className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-bold"
-                      >
-                        {acceptingJob ===
-                        job.id
-                          ? "Accepting..."
-                          : "Accept Job"}
-                      </button>
+                      <p className="text-blue-600 font-bold mt-2">
+                        Payment: $
+                        {getPayment(job).toFixed(2)}
+                      </p>
 
                     </div>
 
+                    <button
+                      onClick={() =>
+                        acceptJob(job.id)
+                      }
+                      disabled={
+                        acceptingJob === job.id
+                      }
+                      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-bold"
+                    >
+                      {acceptingJob === job.id
+                        ? "Accepting..."
+                        : "Accept Job"}
+                    </button>
+
                   </div>
 
-                )
-              )}
+                </div>
+
+              ))}
 
             </div>
+
           )}
 
         </div>
@@ -1014,9 +919,7 @@ export default function WorkerPage() {
               <button
                 onClick={() =>
                   document
-                    .getElementById(
-                      "available-jobs"
-                    )
+                    .getElementById("available-jobs")
                     ?.scrollIntoView({
                       behavior: "smooth",
                     })
@@ -1032,96 +935,93 @@ export default function WorkerPage() {
 
             <div className="space-y-4">
 
-              {myJobs.map(
-                (job) => (
+              {myJobs.map((job) => (
 
-                  <div
-                    key={job.id}
-                    className="border rounded-xl p-5"
-                  >
+                <div
+                  key={job.id}
+                  className="border rounded-xl p-5"
+                >
 
-                    <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-5">
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-5">
 
-                      <div>
+                    <div>
 
-                        <h3 className="text-xl font-bold">
-                          {job.title}
-                        </h3>
+                      <h3 className="text-xl font-bold">
+                        {job.title}
+                      </h3>
 
-                        {job.description && (
-                          <p className="text-gray-500 mt-2">
-                            {job.description}
-                          </p>
-                        )}
-
+                      {job.description && (
                         <p className="text-gray-500 mt-2">
-                          Duration:{" "}
-                          {job.duration ??
-                            "Not specified"}{" "}
-                          minutes
+                          {job.description}
                         </p>
+                      )}
 
-                        <p className="text-blue-600 font-bold mt-2">
-                          Payment: $
-                          {getPayment(
-                            job
-                          ).toFixed(2)}
-                        </p>
+                      <p className="text-gray-500 mt-2">
+                        Duration:{" "}
+                        {job.duration ??
+                          "Not specified"}{" "}
+                        minutes
+                      </p>
 
-                      </div>
+                      <p className="text-blue-600 font-bold mt-2">
+                        Payment: $
+                        {getPayment(job).toFixed(2)}
+                      </p>
 
-                      <div className="flex flex-col items-start md:items-end gap-3">
+                    </div>
 
-                        {job.status ===
-                          "accepted" && (
-                          <>
-                            <span className="bg-blue-100 text-blue-700 px-4 py-2 rounded-full font-semibold">
-                              Accepted
-                            </span>
+                    <div className="flex flex-col items-start md:items-end gap-3">
 
-                            <button
-                              onClick={() =>
-                                openTranscription(
-                                  job.id
-                                )
-                              }
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold"
-                            >
-                              Open & Transcribe
-                            </button>
-                          </>
-                        )}
-
-                        {job.status ===
-                          "completed" && (
-                          <>
-                            <span className="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full font-semibold">
-                              Completed
-                            </span>
-
-                            <span className="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg text-sm">
-                              Submission under review
-                            </span>
-                          </>
-                        )}
-
-                        {job.status ===
-                          "open" && (
-                          <span className="bg-gray-100 text-gray-600 px-4 py-2 rounded-full font-semibold">
-                            Open
+                      {job.status ===
+                        "accepted" && (
+                        <>
+                          <span className="bg-blue-100 text-blue-700 px-4 py-2 rounded-full font-semibold">
+                            Accepted
                           </span>
-                        )}
 
-                      </div>
+                          <button
+                            onClick={() =>
+                              openTranscription(
+                                job.id
+                              )
+                            }
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold"
+                          >
+                            Open & Transcribe
+                          </button>
+                        </>
+                      )}
+
+                      {job.status ===
+                        "completed" && (
+                        <>
+                          <span className="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full font-semibold">
+                            Completed
+                          </span>
+
+                          <span className="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg text-sm">
+                            Submission under review
+                          </span>
+                        </>
+                      )}
+
+                      {job.status ===
+                        "open" && (
+                        <span className="bg-gray-100 text-gray-600 px-4 py-2 rounded-full font-semibold">
+                          Open
+                        </span>
+                      )}
 
                     </div>
 
                   </div>
 
-                )
-              )}
+                </div>
+
+              ))}
 
             </div>
+
           )}
 
         </div>
