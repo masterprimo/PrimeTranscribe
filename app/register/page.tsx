@@ -18,35 +18,42 @@ export default function RegisterPage() {
     setLoading(true);
 
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
+      options: {
+        data: {
+          full_name: fullName.trim(),
+        },
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
     });
 
     if (error) {
-      alert(error.message);
+      console.error("SIGNUP ERROR:", error);
+
+      alert(
+        `Signup failed:\n\nMessage: ${error.message}\n\nCode: ${
+          error.code ?? "none"
+        }\n\nStatus: ${error.status ?? "none"}`
+      );
+
       setLoading(false);
       return;
     }
 
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert({
-          id: data.user.id,
-          full_name: fullName,
-          email,
-          role: "worker",
-          earnings: 0,
-        });
+    console.log("SIGNUP SUCCESS:", data);
 
-      if (profileError) {
-        alert(profileError.message);
-      } else {
-        alert("Account created successfully!");
-        router.push("/worker");
-      }
+    if (!data.user) {
+      alert("Unable to create your account. Please try again.");
+      setLoading(false);
+      return;
     }
 
+    alert(
+      "Account created successfully!\n\nPlease check your email and click the confirmation link before logging in."
+    );
+
+    router.push("/login");
     setLoading(false);
   }
 
@@ -92,7 +99,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-3 font-semibold"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg p-3 font-semibold disabled:opacity-50"
           >
             {loading ? "Creating Account..." : "Create Account"}
           </button>

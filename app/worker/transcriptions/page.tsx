@@ -86,12 +86,13 @@ function TranscriptionContent() {
       return;
     }
 
-    const isInterview = data.job_type === "interview";
+    const isInterview =
+      data.job_type === "interview";
 
     /*
      * INTERVIEW TEST
      *
-     * Interview jobs are shared.
+     * Interview jobs are shared by all workers.
      * They do not belong to one worker.
      */
     if (isInterview) {
@@ -104,13 +105,15 @@ function TranscriptionContent() {
         return;
       }
 
-      const { data: existingSubmission, error: submissionCheckError } =
-        await supabase
-          .from("submissions")
-          .select("id, status")
-          .eq("job_id", jobId)
-          .eq("worker_id", user.id)
-          .maybeSingle();
+      const {
+        data: existingSubmission,
+        error: submissionCheckError,
+      } = await supabase
+        .from("submissions")
+        .select("id, status")
+        .eq("job_id", jobId)
+        .eq("worker_id", user.id)
+        .maybeSingle();
 
       if (submissionCheckError) {
         console.error(
@@ -144,7 +147,11 @@ function TranscriptionContent() {
     /*
      * REGULAR JOB
      *
-     * Regular jobs belong to one worker.
+     * Regular jobs belong to the worker who accepted them.
+     *
+     * IMPORTANT:
+     * The job remains "accepted" after submission.
+     * Admin approval will change it to "completed".
      */
     if (data.worker_id !== user.id) {
       alert(
@@ -161,6 +168,44 @@ function TranscriptionContent() {
     ) {
       alert(
         "This job is not currently available for transcription."
+      );
+
+      router.replace("/worker");
+      return;
+    }
+
+    /*
+     * Prevent the worker from opening/submitting
+     * a regular job that they already submitted.
+     */
+    const {
+      data: existingSubmission,
+      error: submissionCheckError,
+    } = await supabase
+      .from("submissions")
+      .select("id, status")
+      .eq("job_id", jobId)
+      .eq("worker_id", user.id)
+      .maybeSingle();
+
+    if (submissionCheckError) {
+      console.error(
+        "REGULAR SUBMISSION CHECK ERROR:",
+        submissionCheckError
+      );
+
+      alert(
+        submissionCheckError.message ||
+          "Unable to check your submission."
+      );
+
+      router.replace("/worker");
+      return;
+    }
+
+    if (existingSubmission) {
+      alert(
+        "You have already submitted this job. It is waiting for admin review."
       );
 
       router.replace("/worker");
@@ -287,12 +332,10 @@ function TranscriptionContent() {
       }
 
       /*
-       * INTERVIEW TEST:
+       * INTERVIEW TEST
        *
-       * Do NOT update the job.
-       *
-       * The same interview job must remain open so
-       * other workers can also take the test.
+       * Never change the job status.
+       * Other workers must still be able to submit.
        */
       if (isInterview) {
         alert(
@@ -304,34 +347,14 @@ function TranscriptionContent() {
       }
 
       /*
-       * REGULAR JOB:
+       * REGULAR JOB
        *
-       * Mark the job completed after submission.
+       * IMPORTANT:
+       * DO NOT mark the job completed here.
+       *
+       * The job remains accepted/pending review.
+       * Admin approval will mark it completed.
        */
-      const {
-        error: jobUpdateError,
-      } = await supabase
-        .from("jobs")
-        .update({
-          status: "completed",
-        })
-        .eq("id", jobId)
-        .eq("worker_id", user.id);
-
-      if (jobUpdateError) {
-        console.error(
-          "JOB STATUS UPDATE ERROR:",
-          jobUpdateError
-        );
-
-        alert(
-          "Your transcription was submitted, but the job status could not be updated."
-        );
-
-        setSubmitting(false);
-        return;
-      }
-
       alert(
         "Transcription submitted successfully! It is now waiting for admin review."
       );
@@ -397,7 +420,8 @@ function TranscriptionContent() {
     );
   }
 
-  const isInterview = job.job_type === "interview";
+  const isInterview =
+    job.job_type === "interview";
 
   return (
     <main className="min-h-screen bg-gray-100">

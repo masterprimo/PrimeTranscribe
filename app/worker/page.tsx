@@ -40,9 +40,12 @@ export default function WorkerPage() {
   const [availableJobs, setAvailableJobs] = useState<Job[]>([]);
   const [myJobs, setMyJobs] = useState<Job[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [submittedInterviewJobs, setSubmittedInterviewJobs] = useState<
-    number[]
-  >([]);
+
+  const [interviewStatus, setInterviewStatus] = useState<
+    "not_submitted" | "pending" | "approved" | "rejected"
+  >("not_submitted");
+
+  const [interviewJobId, setInterviewJobId] = useState<number | null>(null);
 
   const [earnings, setEarnings] = useState(0);
   const [completedJobs, setCompletedJobs] = useState(0);
@@ -75,11 +78,12 @@ export default function WorkerPage() {
 
     setUserId(user.id);
 
+    await loadInterviewStatus(user.id);
+
     await Promise.all([
       loadJobs(user.id),
       loadEarnings(user.id),
       loadWithdrawals(user.id),
-      loadInterviewSubmissions(user.id),
     ]);
 
     setLoading(false);
@@ -90,42 +94,164 @@ export default function WorkerPage() {
 
     setRefreshing(true);
 
+    await loadInterviewStatus(userId);
+
     await Promise.all([
       loadJobs(userId),
       loadEarnings(userId),
       loadWithdrawals(userId),
-      loadInterviewSubmissions(userId),
     ]);
 
     setRefreshing(false);
   }
 
-  async function loadJobs(currentUserId: string) {
+  async function loadInterviewStatus(currentUserId: string) {
+    /*
+      Interview approval gate:
+
+      approved  = regular jobs unlocked
+      pending   = regular jobs locked
+      rejected  = worker can retake interview
+      none      = worker must take interview
+    */
+
     const {
-      data: openJobs,
-      error: openError,
+      data: interviewJobs,
+      error: interviewJobsError,
+    } = await supabase
+      .from("jobs")
+      .select("id")
+      .eq("job_type", "interview")
+      .order("created_at", { ascending: false });
+
+    if (interviewJobsError) {
+      console.error(
+        "INTERVIEW JOBS ERROR:",
+        interviewJobsError
+      );
+
+      setInterviewStatus("not_submitted");
+      setInterviewJobId(null);
+      return;
+    }
+
+    const firstInterviewJob = interviewJobs?.[0];
+
+    if (!firstInterviewJob) {
+      console.error("No interview job exists.");
+
+      setInterviewStatus("not_submitted");
+      setInterviewJobId(null);
+      return;
+    }
+
+    const currentInterviewJobId = Number(firstInterviewJob.id);
+
+    setInterviewJobId(currentInterviewJobId);
+
+    const {
+      data: interviewSubmissions,
+      error: interviewSubmissionError,
+    } = await supabase
+      .from("submissions")
+      .select(
+        "id, job_id, worker_id, transcript, submitted_at, status"
+      )
+      .eq("worker_id", currentUserId)
+      .eq("job_id", currentInterviewJobId)
+      .order("submitted_at", {
+        ascending: false,
+      });
+
+    if (interviewSubmissionError) {
+      console.error(
+        "INTERVIEW SUBMISSION STATUS ERROR:",
+        interviewSubmissionError
+      );
+
+      setInterviewStatus("not_submitted");
+      return;
+    }
+
+    if (
+      !interviewSubmissions ||
+      interviewSubmissions.length === 0
+    ) {
+      setInterviewStatus("not_submitted");
+      return;
+    }
+
+    const latestSubmission =
+      interviewSubmissions[0] as Submission;
+
+    const status = String(
+      latestSubmission.status || ""
+    ).toLowerCase();
+
+    if (status === "approved") {
+      setInterviewStatus("approved");
+    } else if (
+      status === "rejected" ||
+      status === "declined"
+    ) {
+      setInterviewStatus("rejected");
+    } else {
+      setInterviewStatus("pending");
+    }
+  }
+
+  async function loadJobs(currentUserId: string) {
+    /*
+      IMPORTANT:
+
+      Regular jobs are only loaded for workers whose
+      interview has been approved.
+
+      Interview jobs remain visible so a new worker can
+      complete the qualification test.
+    */
+
+    const {
+      data: allActiveJobs,
+      error: activeJobsError,
     } = await supabase
       .from("jobs")
       .select(
         "id, title, description, audio_url, duration, payment, status, worker_id, job_type, created_at"
       )
-      .eq("status", "open")
+      .in("status", ["open", "accepted"])
       .order("created_at", { ascending: false });
 
-    if (openError) {
+    if (activeJobsError) {
       console.error(
-        "AVAILABLE JOBS ERROR:",
-        JSON.stringify(openError, null, 2)
+        "ACTIVE JOBS ERROR:",
+        JSON.stringify(activeJobsError, null, 2)
       );
 
       alert(
         `Unable to load available jobs: ${
-          openError.message || "Unknown database error"
+          activeJobsError.message ||
+          "Unknown database error"
         }`
       );
     }
 
-    setAvailableJobs((openJobs || []) as Job[]);
+    const jobs = (allActiveJobs || []) as Job[];
+
+    /*
+      Only approved workers can see regular jobs.
+      Interview jobs remain visible regardless of approval.
+    */
+
+    const eligibleJobs = jobs.filter((job) => {
+      if (job.job_type === "interview") {
+        return true;
+      }
+
+      return interviewStatus === "approved";
+    });
+
+    setAvailableJobs(eligibleJobs);
 
     const {
       data: workerJobs,
@@ -143,27 +269,6 @@ export default function WorkerPage() {
     }
 
     setMyJobs((workerJobs || []) as Job[]);
-  }
-
-  async function loadInterviewSubmissions(currentUserId: string) {
-    const { data, error } = await supabase
-      .from("submissions")
-      .select("job_id")
-      .eq("worker_id", currentUserId);
-
-    if (error) {
-      console.error(
-        "INTERVIEW SUBMISSIONS ERROR:",
-        error
-      );
-      return;
-    }
-
-    setSubmittedInterviewJobs(
-      (data || []).map((submission) =>
-        Number(submission.job_id)
-      )
-    );
   }
 
   async function loadEarnings(currentUserId: string) {
@@ -225,12 +330,13 @@ export default function WorkerPage() {
           approvedJobsError
         );
       } else {
-        totalApproved =
-          (approvedJobs || []).reduce(
-            (total, job) =>
-              total + Number(job.payment ?? 0),
-            0
-          );
+        totalApproved = (
+          approvedJobs || []
+        ).reduce(
+          (total, job) =>
+            total + Number(job.payment ?? 0),
+          0
+        );
       }
     }
 
@@ -260,7 +366,8 @@ export default function WorkerPage() {
     const totalWithdrawn =
       (approvedWithdrawals || []).reduce(
         (total, withdrawal) =>
-          total + Number(withdrawal.amount || 0),
+          total +
+          Number(withdrawal.amount || 0),
         0
       );
 
@@ -272,7 +379,9 @@ export default function WorkerPage() {
     );
   }
 
-  async function loadWithdrawals(currentUserId: string) {
+  async function loadWithdrawals(
+    currentUserId: string
+  ) {
     const {
       data,
       error,
@@ -305,6 +414,20 @@ export default function WorkerPage() {
       return;
     }
 
+    /*
+      Final client-side interview approval check
+      before allowing a regular job to be accepted.
+    */
+
+    if (interviewStatus !== "approved") {
+      alert(
+        "You must pass the interview and receive admin approval before accepting regular jobs."
+      );
+
+      await loadInterviewStatus(userId);
+      return;
+    }
+
     setAcceptingJob(jobId);
 
     const {
@@ -319,6 +442,7 @@ export default function WorkerPage() {
       .eq("id", jobId)
       .eq("status", "open")
       .eq("job_type", "regular")
+      .is("worker_id", null)
       .select(
         "id, title, description, audio_url, duration, payment, status, worker_id, job_type, created_at"
       )
@@ -345,6 +469,7 @@ export default function WorkerPage() {
       );
 
       await loadJobs(userId);
+
       setAcceptingJob(null);
       return;
     }
@@ -360,16 +485,33 @@ export default function WorkerPage() {
 
   function openInterviewTest(jobId: number) {
     if (
-      submittedInterviewJobs.includes(
-        jobId
-      )
+      interviewStatus === "pending"
     ) {
       alert(
-        "You have already submitted this interview test."
+        "Your interview is already under review."
       );
       return;
     }
 
+    if (
+      interviewStatus === "approved"
+    ) {
+      alert(
+        "Your interview has already been approved. You can now work on regular jobs."
+      );
+      return;
+    }
+
+    router.push(
+      `/worker/transcriptions?jobId=${encodeURIComponent(
+        String(jobId)
+      )}`
+    );
+  }
+
+  function openTranscription(
+    jobId: number
+  ) {
     router.push(
       `/worker/transcriptions?jobId=${encodeURIComponent(
         String(jobId)
@@ -404,7 +546,9 @@ export default function WorkerPage() {
     }
 
     if (!paypalEmail.trim()) {
-      alert("Enter your PayPal email.");
+      alert(
+        "Enter your PayPal email."
+      );
       return;
     }
 
@@ -417,15 +561,16 @@ export default function WorkerPage() {
 
     setWithdrawing(true);
 
-    const { error } = await supabase
-      .from("withdrawals")
-      .insert({
-        worker_id: userId,
-        amount,
-        paypal_email:
-          paypalEmail.trim(),
-        status: "pending",
-      });
+    const { error } =
+      await supabase
+        .from("withdrawals")
+        .insert({
+          worker_id: userId,
+          amount,
+          paypal_email:
+            paypalEmail.trim(),
+          status: "pending",
+        });
 
     if (error) {
       console.error(
@@ -460,16 +605,10 @@ export default function WorkerPage() {
     router.replace("/login");
   }
 
-  function openTranscription(jobId: number) {
-    router.push(
-      `/worker/transcriptions?jobId=${encodeURIComponent(
-        String(jobId)
-      )}`
-    );
-  }
-
   function getPayment(job: Job) {
-    return Number(job.payment ?? 0);
+    return Number(
+      job.payment ?? 0
+    );
   }
 
   if (loading) {
@@ -490,8 +629,6 @@ export default function WorkerPage() {
 
   return (
     <main className="min-h-screen bg-gray-100">
-
-      {/* HEADER */}
 
       <header className="bg-blue-700 text-white shadow-lg">
         <div className="max-w-7xl mx-auto px-6 py-5">
@@ -597,8 +734,6 @@ export default function WorkerPage() {
 
       <section className="max-w-7xl mx-auto p-8">
 
-        {/* WELCOME */}
-
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-gray-800">
             Welcome, Worker
@@ -609,13 +744,87 @@ export default function WorkerPage() {
           </p>
         </div>
 
-        {/* STATS */}
+        {/* INTERVIEW STATUS */}
+
+        <div className="bg-white rounded-xl shadow p-6 mb-8">
+
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">
+                Worker Qualification
+              </h2>
+
+              {interviewStatus ===
+                "not_submitted" && (
+                <p className="text-gray-500 mt-2">
+                  Complete the interview test before accessing paid transcription jobs.
+                </p>
+              )}
+
+              {interviewStatus ===
+                "pending" && (
+                <p className="text-yellow-700 font-semibold mt-2">
+                  Your interview has been submitted and is waiting for admin approval.
+                </p>
+              )}
+
+              {interviewStatus ===
+                "approved" && (
+                <p className="text-green-700 font-semibold mt-2">
+                  Your interview has been approved. Regular transcription jobs are unlocked.
+                </p>
+              )}
+
+              {interviewStatus ===
+                "rejected" && (
+                <p className="text-red-700 font-semibold mt-2">
+                  Your interview was not approved. You can retake the interview test.
+                </p>
+              )}
+            </div>
+
+            <div>
+
+              {interviewStatus ===
+                "not_submitted" && (
+                <span className="bg-purple-100 text-purple-700 px-5 py-3 rounded-lg font-bold">
+                  Interview Required
+                </span>
+              )}
+
+              {interviewStatus ===
+                "pending" && (
+                <span className="bg-yellow-100 text-yellow-700 px-5 py-3 rounded-lg font-bold">
+                  Under Review
+                </span>
+              )}
+
+              {interviewStatus ===
+                "approved" && (
+                <span className="bg-green-100 text-green-700 px-5 py-3 rounded-lg font-bold">
+                  Approved ✓
+                </span>
+              )}
+
+              {interviewStatus ===
+                "rejected" && (
+                <span className="bg-red-100 text-red-700 px-5 py-3 rounded-lg font-bold">
+                  Retake Required
+                </span>
+              )}
+
+            </div>
+
+          </div>
+
+        </div>
 
         <div className="grid md:grid-cols-3 gap-6 mb-8">
 
           <div className="bg-white rounded-xl shadow p-6">
             <p className="text-gray-500">
-              Available Jobs
+              Active Jobs
             </p>
 
             <p className="text-4xl font-bold text-blue-600 mt-2">
@@ -644,8 +853,6 @@ export default function WorkerPage() {
           </div>
 
         </div>
-
-        {/* QUICK ACTIONS */}
 
         <div className="bg-white rounded-xl shadow p-6 mb-8">
 
@@ -704,7 +911,9 @@ export default function WorkerPage() {
             </button>
 
             <button
-              onClick={refreshDashboard}
+              onClick={
+                refreshDashboard
+              }
               disabled={refreshing}
               className="bg-gray-800 hover:bg-gray-900 disabled:bg-gray-400 text-white px-5 py-3 rounded-lg font-semibold"
             >
@@ -715,8 +924,6 @@ export default function WorkerPage() {
 
           </div>
         </div>
-
-        {/* WITHDRAW */}
 
         <div className="bg-white rounded-xl shadow p-6 mb-8">
 
@@ -816,8 +1023,6 @@ export default function WorkerPage() {
 
         </div>
 
-        {/* RECENT WITHDRAWALS */}
-
         <div className="bg-white rounded-xl shadow p-6 mb-8">
 
           <div className="flex justify-between items-center mb-6">
@@ -910,8 +1115,6 @@ export default function WorkerPage() {
 
         </div>
 
-        {/* AVAILABLE JOBS */}
-
         <div
           id="available-jobs"
           className="bg-white rounded-xl shadow p-6 mb-8"
@@ -925,23 +1128,60 @@ export default function WorkerPage() {
               </h2>
 
               <p className="text-gray-500 mt-1">
-                Regular jobs and interview tests available to you.
+                {interviewStatus ===
+                "approved"
+                  ? "Regular transcription jobs are available."
+                  : "Complete and pass the interview to unlock regular jobs."}
               </p>
             </div>
 
             <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
-              {availableJobs.length} jobs
+              {availableJobs.length} active
             </span>
 
           </div>
+
+          {interviewStatus !==
+            "approved" &&
+            interviewStatus !==
+              "not_submitted" &&
+            interviewStatus !==
+              "rejected" && (
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 mb-6">
+
+                <h3 className="font-bold text-yellow-800">
+                  Regular jobs are locked
+                </h3>
+
+                <p className="text-yellow-700 mt-1">
+                  Your interview must be approved by an administrator before you can accept paid transcription jobs.
+                </p>
+
+              </div>
+
+            )}
 
           {availableJobs.length ===
           0 ? (
 
             <div className="bg-gray-50 rounded-lg p-8 text-center">
-              <p className="text-gray-500">
-                No available jobs right now.
-              </p>
+
+              {interviewStatus ===
+                "approved" ? (
+
+                <p className="text-gray-500">
+                  No active jobs right now.
+                </p>
+
+              ) : (
+
+                <p className="text-gray-500">
+                  Regular jobs will appear here after your interview is approved.
+                </p>
+
+              )}
+
             </div>
 
           ) : (
@@ -955,10 +1195,16 @@ export default function WorkerPage() {
                     job.job_type ===
                     "interview";
 
-                  const alreadySubmitted =
-                    submittedInterviewJobs.includes(
-                      job.id
-                    );
+                  const isAssignedToCurrentWorker =
+                    job.worker_id ===
+                    userId;
+
+                  const isAssignedToAnotherWorker =
+                    !isInterview &&
+                    job.worker_id !==
+                      null &&
+                    job.worker_id !==
+                      userId;
 
                   return (
                     <div
@@ -984,11 +1230,17 @@ export default function WorkerPage() {
                               className={`px-3 py-1 rounded-full text-xs font-bold ${
                                 isInterview
                                   ? "bg-purple-100 text-purple-700"
+                                  : job.status ===
+                                    "accepted"
+                                  ? "bg-yellow-100 text-yellow-700"
                                   : "bg-gray-100 text-gray-700"
                               }`}
                             >
                               {isInterview
                                 ? "INTERVIEW TEST"
+                                : job.status ===
+                                  "accepted"
+                                ? "ACTIVE — ASSIGNED"
                                 : "REGULAR JOB"}
                             </span>
 
@@ -1016,6 +1268,14 @@ export default function WorkerPage() {
                             ).toFixed(2)}
                           </p>
 
+                          {!isInterview &&
+                            job.status ===
+                              "accepted" && (
+                              <p className="text-yellow-700 font-semibold mt-2">
+                                This job is currently assigned to a worker and remains active until admin approval.
+                              </p>
+                            )}
+
                           {isInterview && (
                             <p className="text-purple-700 font-semibold mt-2">
                               Complete this test to qualify for Prime Transcribe work.
@@ -1033,14 +1293,41 @@ export default function WorkerPage() {
                               )
                             }
                             disabled={
-                              alreadySubmitted
+                              interviewStatus ===
+                              "pending"
                             }
                             className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-bold"
                           >
-                            {alreadySubmitted
-                              ? "Test Submitted"
+                            {interviewStatus ===
+                            "pending"
+                              ? "Under Review"
+                              : interviewStatus ===
+                                "approved"
+                              ? "Approved"
+                              : interviewStatus ===
+                                "rejected"
+                              ? "Retake Interview"
                               : "Take Interview Test"}
                           </button>
+
+                        ) : isAssignedToCurrentWorker ? (
+
+                          <button
+                            onClick={() =>
+                              openTranscription(
+                                job.id
+                              )
+                            }
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold"
+                          >
+                            Open & Transcribe
+                          </button>
+
+                        ) : isAssignedToAnotherWorker ? (
+
+                          <span className="bg-yellow-100 text-yellow-700 px-5 py-3 rounded-lg font-semibold text-center">
+                            Assigned — Awaiting Approval
+                          </span>
 
                         ) : (
 
@@ -1052,13 +1339,18 @@ export default function WorkerPage() {
                             }
                             disabled={
                               acceptingJob ===
-                              job.id
+                              job.id ||
+                              interviewStatus !==
+                                "approved"
                             }
                             className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-lg font-bold"
                           >
                             {acceptingJob ===
                             job.id
                               ? "Accepting..."
+                              : interviewStatus !==
+                                "approved"
+                              ? "Interview Approval Required"
                               : "Accept Job"}
                           </button>
 
@@ -1076,8 +1368,6 @@ export default function WorkerPage() {
           )}
 
         </div>
-
-        {/* MY JOBS */}
 
         <div
           id="my-jobs"
@@ -1112,8 +1402,7 @@ export default function WorkerPage() {
                       "available-jobs"
                     )
                     ?.scrollIntoView({
-                      behavior:
-                        "smooth",
+                      behavior: "smooth",
                     })
                 }
                 className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-semibold"
@@ -1173,7 +1462,7 @@ export default function WorkerPage() {
                           "accepted" && (
                           <>
                             <span className="bg-blue-100 text-blue-700 px-4 py-2 rounded-full font-semibold">
-                              Accepted
+                              Active — Awaiting Approval
                             </span>
 
                             <button
@@ -1192,12 +1481,12 @@ export default function WorkerPage() {
                         {job.status ===
                           "completed" && (
                           <>
-                            <span className="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-full font-semibold">
-                              Completed
+                            <span className="bg-green-100 text-green-700 px-4 py-2 rounded-full font-semibold">
+                              Approved & Completed
                             </span>
 
-                            <span className="bg-yellow-50 text-yellow-700 px-4 py-2 rounded-lg text-sm">
-                              Submission under review
+                            <span className="bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm">
+                              Admin approved this submission.
                             </span>
                           </>
                         )}
