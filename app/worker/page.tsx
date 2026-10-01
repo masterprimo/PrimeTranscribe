@@ -34,6 +34,12 @@ type Withdrawal = {
   status: string;
 };
 
+type InterviewStatus =
+  | "not_submitted"
+  | "pending"
+  | "approved"
+  | "rejected";
+
 export default function WorkerPage() {
   const router = useRouter();
 
@@ -41,11 +47,11 @@ export default function WorkerPage() {
   const [myJobs, setMyJobs] = useState<Job[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
 
-  const [interviewStatus, setInterviewStatus] = useState<
-    "not_submitted" | "pending" | "approved" | "rejected"
-  >("not_submitted");
+  const [interviewStatus, setInterviewStatus] =
+    useState<InterviewStatus>("not_submitted");
 
-  const [interviewJobId, setInterviewJobId] = useState<number | null>(null);
+  const [interviewJobId, setInterviewJobId] =
+    useState<number | null>(null);
 
   const [earnings, setEarnings] = useState(0);
   const [completedJobs, setCompletedJobs] = useState(0);
@@ -56,7 +62,8 @@ export default function WorkerPage() {
   const [userId, setUserId] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [acceptingJob, setAcceptingJob] = useState<number | null>(null);
+  const [acceptingJob, setAcceptingJob] =
+    useState<number | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
 
   useEffect(() => {
@@ -78,10 +85,11 @@ export default function WorkerPage() {
 
     setUserId(user.id);
 
-    await loadInterviewStatus(user.id);
+    const currentInterviewStatus =
+      await loadInterviewStatus(user.id);
 
     await Promise.all([
-      loadJobs(user.id),
+      loadJobs(user.id, currentInterviewStatus),
       loadEarnings(user.id),
       loadWithdrawals(user.id),
     ]);
@@ -94,10 +102,11 @@ export default function WorkerPage() {
 
     setRefreshing(true);
 
-    await loadInterviewStatus(userId);
+    const currentInterviewStatus =
+      await loadInterviewStatus(userId);
 
     await Promise.all([
-      loadJobs(userId),
+      loadJobs(userId, currentInterviewStatus),
       loadEarnings(userId),
       loadWithdrawals(userId),
     ]);
@@ -105,14 +114,16 @@ export default function WorkerPage() {
     setRefreshing(false);
   }
 
-  async function loadInterviewStatus(currentUserId: string) {
+  async function loadInterviewStatus(
+    currentUserId: string
+  ): Promise<InterviewStatus> {
     /*
       Interview approval gate:
 
-      approved  = regular jobs unlocked
-      pending   = regular jobs locked
-      rejected  = worker can retake interview
-      none      = worker must take interview
+      approved      = regular jobs unlocked
+      pending       = regular jobs locked
+      rejected      = worker can retake interview
+      not_submitted = worker must take interview
     */
 
     const {
@@ -132,7 +143,8 @@ export default function WorkerPage() {
 
       setInterviewStatus("not_submitted");
       setInterviewJobId(null);
-      return;
+
+      return "not_submitted";
     }
 
     const firstInterviewJob = interviewJobs?.[0];
@@ -142,10 +154,12 @@ export default function WorkerPage() {
 
       setInterviewStatus("not_submitted");
       setInterviewJobId(null);
-      return;
+
+      return "not_submitted";
     }
 
-    const currentInterviewJobId = Number(firstInterviewJob.id);
+    const currentInterviewJobId =
+      Number(firstInterviewJob.id);
 
     setInterviewJobId(currentInterviewJobId);
 
@@ -170,7 +184,8 @@ export default function WorkerPage() {
       );
 
       setInterviewStatus("not_submitted");
-      return;
+
+      return "not_submitted";
     }
 
     if (
@@ -178,7 +193,8 @@ export default function WorkerPage() {
       interviewSubmissions.length === 0
     ) {
       setInterviewStatus("not_submitted");
-      return;
+
+      return "not_submitted";
     }
 
     const latestSubmission =
@@ -190,24 +206,33 @@ export default function WorkerPage() {
 
     if (status === "approved") {
       setInterviewStatus("approved");
-    } else if (
+
+      return "approved";
+    }
+
+    if (
       status === "rejected" ||
       status === "declined"
     ) {
       setInterviewStatus("rejected");
-    } else {
-      setInterviewStatus("pending");
+
+      return "rejected";
     }
+
+    setInterviewStatus("pending");
+
+    return "pending";
   }
 
-  async function loadJobs(currentUserId: string) {
+  async function loadJobs(
+    currentUserId: string,
+    currentInterviewStatus: InterviewStatus
+  ) {
     /*
-      IMPORTANT:
+      Regular jobs are only available to workers
+      whose interview has been approved.
 
-      Regular jobs are only loaded for workers whose
-      interview has been approved.
-
-      Interview jobs remain visible so a new worker can
+      Interview jobs remain visible so workers can
       complete the qualification test.
     */
 
@@ -220,12 +245,18 @@ export default function WorkerPage() {
         "id, title, description, audio_url, duration, payment, status, worker_id, job_type, created_at"
       )
       .in("status", ["open", "accepted"])
-      .order("created_at", { ascending: false });
+      .order("created_at", {
+        ascending: false,
+      });
 
     if (activeJobsError) {
       console.error(
         "ACTIVE JOBS ERROR:",
-        JSON.stringify(activeJobsError, null, 2)
+        JSON.stringify(
+          activeJobsError,
+          null,
+          2
+        )
       );
 
       alert(
@@ -236,20 +267,28 @@ export default function WorkerPage() {
       );
     }
 
-    const jobs = (allActiveJobs || []) as Job[];
+    const jobs =
+      (allActiveJobs || []) as Job[];
 
     /*
-      Only approved workers can see regular jobs.
-      Interview jobs remain visible regardless of approval.
+      IMPORTANT:
+      Use the status returned directly from
+      loadInterviewStatus() instead of relying on
+      React state, which updates asynchronously.
     */
 
-    const eligibleJobs = jobs.filter((job) => {
-      if (job.job_type === "interview") {
-        return true;
-      }
+    const eligibleJobs = jobs.filter(
+      (job) => {
+        if (job.job_type === "interview") {
+          return true;
+        }
 
-      return interviewStatus === "approved";
-    });
+        return (
+          currentInterviewStatus ===
+          "approved"
+        );
+      }
+    );
 
     setAvailableJobs(eligibleJobs);
 
@@ -262,16 +301,25 @@ export default function WorkerPage() {
         "id, title, description, audio_url, duration, payment, status, worker_id, job_type, created_at"
       )
       .eq("worker_id", currentUserId)
-      .order("created_at", { ascending: false });
+      .order("created_at", {
+        ascending: false,
+      });
 
     if (workerError) {
-      console.error("MY JOBS ERROR:", workerError);
+      console.error(
+        "MY JOBS ERROR:",
+        workerError
+      );
     }
 
-    setMyJobs((workerJobs || []) as Job[]);
+    setMyJobs(
+      (workerJobs || []) as Job[]
+    );
   }
 
-  async function loadEarnings(currentUserId: string) {
+  async function loadEarnings(
+    currentUserId: string
+  ) {
     const {
       data: submissions,
       error: submissionError,
@@ -290,6 +338,7 @@ export default function WorkerPage() {
 
       setEarnings(0);
       setCompletedJobs(0);
+
       return;
     }
 
@@ -299,18 +348,21 @@ export default function WorkerPage() {
     if (workerSubmissions.length === 0) {
       setEarnings(0);
       setCompletedJobs(0);
+
       return;
     }
 
     const approvedSubmissions =
       workerSubmissions.filter(
         (submission) =>
-          submission.status === "approved"
+          submission.status ===
+          "approved"
       );
 
     const approvedJobIds =
       approvedSubmissions.map(
-        (submission) => submission.job_id
+        (submission) =>
+          submission.job_id
       );
 
     let totalApproved = 0;
@@ -322,7 +374,10 @@ export default function WorkerPage() {
       } = await supabase
         .from("jobs")
         .select("id, payment")
-        .in("id", approvedJobIds);
+        .in(
+          "id",
+          approvedJobIds
+        );
 
       if (approvedJobsError) {
         console.error(
@@ -330,13 +385,15 @@ export default function WorkerPage() {
           approvedJobsError
         );
       } else {
-        totalApproved = (
-          approvedJobs || []
-        ).reduce(
-          (total, job) =>
-            total + Number(job.payment ?? 0),
-          0
-        );
+        totalApproved =
+          (approvedJobs || []).reduce(
+            (total, job) =>
+              total +
+              Number(
+                job.payment ?? 0
+              ),
+            0
+          );
       }
     }
 
@@ -350,7 +407,10 @@ export default function WorkerPage() {
     } = await supabase
       .from("withdrawals")
       .select("amount, status")
-      .eq("worker_id", currentUserId)
+      .eq(
+        "worker_id",
+        currentUserId
+      )
       .eq("status", "approved");
 
     if (withdrawalError) {
@@ -360,6 +420,7 @@ export default function WorkerPage() {
       );
 
       setEarnings(totalApproved);
+
       return;
     }
 
@@ -367,13 +428,16 @@ export default function WorkerPage() {
       (approvedWithdrawals || []).reduce(
         (total, withdrawal) =>
           total +
-          Number(withdrawal.amount || 0),
+          Number(
+            withdrawal.amount || 0
+          ),
         0
       );
 
     setEarnings(
       Math.max(
-        totalApproved - totalWithdrawn,
+        totalApproved -
+          totalWithdrawn,
         0
       )
     );
@@ -390,7 +454,10 @@ export default function WorkerPage() {
       .select(
         "id, worker_id, amount, paypal_email, status"
       )
-      .eq("worker_id", currentUserId)
+      .eq(
+        "worker_id",
+        currentUserId
+      )
       .order("id", {
         ascending: false,
       });
@@ -400,6 +467,7 @@ export default function WorkerPage() {
         "WITHDRAWALS ERROR:",
         error
       );
+
       return;
     }
 
@@ -408,23 +476,45 @@ export default function WorkerPage() {
     );
   }
 
-  async function acceptJob(jobId: number) {
+  async function acceptJob(
+    jobId: number
+  ) {
     if (!userId) {
-      alert("Please log in again.");
+      alert(
+        "Please log in again."
+      );
+
       return;
     }
 
     /*
-      Final client-side interview approval check
-      before allowing a regular job to be accepted.
+      Final client-side interview approval
+      check before accepting a regular job.
     */
 
-    if (interviewStatus !== "approved") {
+    if (
+      interviewStatus !==
+      "approved"
+    ) {
       alert(
         "You must pass the interview and receive admin approval before accepting regular jobs."
       );
 
-      await loadInterviewStatus(userId);
+      const currentStatus =
+        await loadInterviewStatus(
+          userId
+        );
+
+      if (
+        currentStatus ===
+        "approved"
+      ) {
+        await loadJobs(
+          userId,
+          currentStatus
+        );
+      }
+
       return;
     }
 
@@ -460,6 +550,7 @@ export default function WorkerPage() {
       );
 
       setAcceptingJob(null);
+
       return;
     }
 
@@ -468,9 +559,18 @@ export default function WorkerPage() {
         "This job is no longer available. Please refresh."
       );
 
-      await loadJobs(userId);
+      const currentStatus =
+        await loadInterviewStatus(
+          userId
+        );
+
+      await loadJobs(
+        userId,
+        currentStatus
+      );
 
       setAcceptingJob(null);
+
       return;
     }
 
@@ -478,27 +578,41 @@ export default function WorkerPage() {
       "Job accepted successfully!"
     );
 
-    await loadJobs(userId);
+    const currentStatus =
+      await loadInterviewStatus(
+        userId
+      );
+
+    await loadJobs(
+      userId,
+      currentStatus
+    );
 
     setAcceptingJob(null);
   }
 
-  function openInterviewTest(jobId: number) {
+  function openInterviewTest(
+    jobId: number
+  ) {
     if (
-      interviewStatus === "pending"
+      interviewStatus ===
+      "pending"
     ) {
       alert(
         "Your interview is already under review."
       );
+
       return;
     }
 
     if (
-      interviewStatus === "approved"
+      interviewStatus ===
+      "approved"
     ) {
       alert(
         "Your interview has already been approved. You can now work on regular jobs."
       );
+
       return;
     }
 
@@ -521,7 +635,10 @@ export default function WorkerPage() {
 
   async function requestWithdrawal() {
     if (!userId) {
-      alert("Please log in again.");
+      alert(
+        "Please log in again."
+      );
+
       return;
     }
 
@@ -533,6 +650,7 @@ export default function WorkerPage() {
       alert(
         "Enter a valid withdrawal amount."
       );
+
       return;
     }
 
@@ -542,6 +660,7 @@ export default function WorkerPage() {
           2
         )} available.`
       );
+
       return;
     }
 
@@ -549,13 +668,17 @@ export default function WorkerPage() {
       alert(
         "Enter your PayPal email."
       );
+
       return;
     }
 
-    if (!paypalEmail.includes("@")) {
+    if (
+      !paypalEmail.includes("@")
+    ) {
       alert(
         "Enter a valid PayPal email."
       );
+
       return;
     }
 
@@ -584,6 +707,7 @@ export default function WorkerPage() {
       );
 
       setWithdrawing(false);
+
       return;
     }
 
@@ -594,18 +718,26 @@ export default function WorkerPage() {
     setWithdrawAmount("");
     setPaypalEmail("");
 
-    await loadWithdrawals(userId);
-    await loadEarnings(userId);
+    await loadWithdrawals(
+      userId
+    );
+
+    await loadEarnings(
+      userId
+    );
 
     setWithdrawing(false);
   }
 
   async function logout() {
     await supabase.auth.signOut();
+
     router.replace("/login");
   }
 
-  function getPayment(job: Job) {
+  function getPayment(
+    job: Job
+  ) {
     return Number(
       job.payment ?? 0
     );
@@ -649,7 +781,9 @@ export default function WorkerPage() {
 
               <button
                 onClick={() =>
-                  router.push("/worker")
+                  router.push(
+                    "/worker"
+                  )
                 }
                 className="bg-white text-blue-700 px-4 py-2 rounded-lg font-semibold"
               >
@@ -663,7 +797,8 @@ export default function WorkerPage() {
                       "available-jobs"
                     )
                     ?.scrollIntoView({
-                      behavior: "smooth",
+                      behavior:
+                        "smooth",
                     })
                 }
                 className="hover:bg-blue-600 px-4 py-2 rounded-lg"
@@ -678,7 +813,8 @@ export default function WorkerPage() {
                       "my-jobs"
                     )
                     ?.scrollIntoView({
-                      behavior: "smooth",
+                      behavior:
+                        "smooth",
                     })
                 }
                 className="hover:bg-blue-600 px-4 py-2 rounded-lg"
@@ -869,7 +1005,8 @@ export default function WorkerPage() {
                     "available-jobs"
                   )
                   ?.scrollIntoView({
-                    behavior: "smooth",
+                    behavior:
+                      "smooth",
                   })
               }
               className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-lg font-semibold"
@@ -1339,7 +1476,7 @@ export default function WorkerPage() {
                             }
                             disabled={
                               acceptingJob ===
-                              job.id ||
+                                job.id ||
                               interviewStatus !==
                                 "approved"
                             }
@@ -1402,7 +1539,8 @@ export default function WorkerPage() {
                       "available-jobs"
                     )
                     ?.scrollIntoView({
-                      behavior: "smooth",
+                      behavior:
+                        "smooth",
                     })
                 }
                 className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg font-semibold"
@@ -1503,7 +1641,6 @@ export default function WorkerPage() {
                     </div>
 
                   </div>
-
                 )
               )}
 
