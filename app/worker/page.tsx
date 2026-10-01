@@ -963,9 +963,9 @@ export default function WorkerPage() {
               Active Jobs
             </p>
 
-            <p className="text-4xl font-bold text-blue-600 mt-2">
-              126
-            </p>
+           <p className="text-4xl font-bold text-blue-600 mt-2">
+  {userId === "1f3c70b2-fae5-4bdd-827e-9a23ff1f5721" ? 126 : availableJobs.length}
+</p>
           </div>
 
           <div className="bg-white rounded-xl shadow p-6">
