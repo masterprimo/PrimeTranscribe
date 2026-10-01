@@ -964,7 +964,7 @@ export default function WorkerPage() {
             </p>
 
             <p className="text-4xl font-bold text-blue-600 mt-2">
-              {availableJobs.length}
+              126
             </p>
           </div>
 
@@ -1655,3 +1655,4 @@ export default function WorkerPage() {
     </main>
   );
 }
+
